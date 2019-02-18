@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>netcoreapp2.2</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
+      <PackageReference Include="OneOf" Version="2.1.127" />
+      <PackageReference Include="StreamJsonRpc" Version="2.0.146" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="Steamworks.NET, Version=11.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\Steamworks.NET\Windows-x64\Steamworks.NET.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+</Project>

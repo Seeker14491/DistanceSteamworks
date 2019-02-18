@@ -1,0 +1,11 @@
+[package]
+name = "manager"
+version = "0.1.0"
+authors = ["Brian Bowman <seeker14491@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+env_logger = "0.6.0"
+failure = "0.1.5"
+log = "0.4.6"
+reqwest = "0.9.9"

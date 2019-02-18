@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <title>Distance WR Log</title>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <!-- favicon stuff -->
+  <link rel="apple-touch-icon" sizes="76x76" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="mask-icon" href="safari-pinned-tab.svg" color="#5bbad5">
+  <link rel="shortcut icon" href="favicon.ico">
+  <meta name="msapplication-config" content="browserconfig.xml">
+  <meta name="theme-color" content="#ffffff">
+
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+
+  <link href="style.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+  <div class="tableAndStatus">
+    <p>Last updated <span class="timestamp">{{update_time}}</span></p>
+
+    <table class="table table-dark table-striped table-bordered table-sm">
+      <thead>
+        <tr>
+          <th>Fetch Time</th>
+          <th>Map</th>
+          <th>Mode</th>
+          <th>Record Holder</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each entries}}
+          <tr>
+            <td class="timestamp">{{fetch_time}}</td>
+            <td>
+              <div>{{map_name}} {{#if map_author}}
+                by <a href="https://steamcommunity.com/profiles/{{steam_id_author}}" target="_blank">{{map_author}}</a>
+              {{else}}
+                <b>(official level)</b>
+              {{/if}}</div>
+              {{#if workshop_item_id}}
+                <a href="https://steamcommunity.com/sharedfiles/filedetails/?id={{workshop_item_id}}" target="_blank"><img class="preview" src={{map_preview}}></a>
+              {{/if}}
+            </td>
+            <td>{{mode}}</td>
+            <td>
+              <div>New: <a href="https://steamcommunity.com/profiles/{{steam_id_new_recordholder}}" target="_blank">{{new_recordholder}}</a></div>
+              <div>Previous: {{#if steam_id_old_recordholder}}
+                <a href="https://steamcommunity.com/profiles/{{steam_id_old_recordholder}}" target="_blank">{{old_recordholder}}</a>
+              {{else}}
+                --
+              {{/if}}</div>
+            </td>
+            <td>{{#if record_old}}
+              {{record_old}}
+            {{else}}
+              --
+            {{/if}} ➔ {{record_new}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+
+  <script src="moment.js"></script>
+  <script src="index.js"></script>
+</body>
+
+</html>
