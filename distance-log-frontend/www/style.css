@@ -1,0 +1,44 @@
+@font-face {
+    font-family: 'gudearegular';
+    src: url('../www/gudea-regular-webfont.woff2') format('woff2'),
+         url('../www/gudea-regular-webfont.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+
+html,
+body {
+    color: white;
+    background-color: #222;
+    height: 100%;
+    display: flex;
+    flex-flow: column;
+}
+
+#top {
+    display: flex;
+    flex: 0 0 2rem;
+    height: 10px;
+    justify-content: space-between;
+}
+
+#title {
+    font-family: 'gudearegular';
+    align-self: center;
+    margin: 2px;
+}
+
+#filter-text-box {
+    width: 20rem;
+    margin: 2px;
+}
+
+#grid {
+    display: flex;
+    flex: 1 1 auto;
+    flex-flow: column;
+}
+
+a, a:hover {
+    color: dodgerblue;
+}

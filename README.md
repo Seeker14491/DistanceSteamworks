@@ -2,13 +2,15 @@
 
 > Software for querying and processing Distance's Steamworks data.
 
-This repo currently contains three pieces of software: `DistanceSteamworksProxy`, `distance-log`, and `manager`.
+This repo currently contains four pieces of software: `DistanceSteamworksProxy`, `manager`, `distance-log`, and `distance-log-frontend`.
 
 DistanceSteamworksProxy communicates with Steam servers through the [Steamworks API](https://partner.steamgames.com/doc/sdk/api), and exposes its own API via [JSON-RPC](https://www.jsonrpc.org/specification). It is implemented in C#, and makes use of the [Steamworks.NET](https://steamworks.github.io/) library, which is also used by Distance.
 
 "manager" is a wrapper around DistanceSteamworksProxy that periodically restarts Steam and DistanceSteamworksProxy to keep things running smoothly. It is implemented in Rust.
 
-distance-log consumes the API exposed by DistanceSteamworksProxy, and uses it to query the Steam leaderboards and render an HTML page showing a log of new world records. It is implemented in Rust. You can see its output at https://seekr.pw/distance-log/.
+distance-log consumes the API exposed by DistanceSteamworksProxy, and uses it to query the Steam leaderboards and output a log of new world records in JSON. It is implemented in Rust. You can access this generated changelog here: https://seekr.pw/distance-log/changelist.json.
+
+distance-log-frontend is a webapp that displays the changelog that distance-log outputs. You can see it running at https://seekr.pw/distance-log/.
 
 ## Building
 
@@ -16,12 +18,13 @@ distance-log consumes the API exposed by DistanceSteamworksProxy, and uses it to
 
 - .NET Core SDK to build DistanceSteamworksProxy
 - Rust nightly to build distance-log and "manager"
+- Yarn and Parcel, to build distance-log-frontend
 - Python, if you will make use of the "build.py" build script
 
 
 Most code is cross-platform and should build and run on Windows, Mac, and Linux. An exception is the "manager" program, which is only written for running on Linux.
 
-A build script "build.py" is provided that builds everything and copies things into the right places, but it'll only work on Windows 10 with WSL installed, and it just builds for Linux x64. If your setup is different you will need to tweak this file. This script builds everything into the `out\linux-x64` directory.
+A build script "build.py" is provided that builds everything and copies things into the right places, but it'll only work on Windows 10 with WSL installed, and it just builds for Linux x64. You will need Rust installed inside WSL. If your setup is different you will need to tweak this file, or just build what you need individually. This script builds everything into the `out\linux-x64` directory.
 
 ## Running
 

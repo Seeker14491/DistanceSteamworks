@@ -4,13 +4,11 @@
 extern crate log;
 
 mod cli_args;
-mod html;
 mod official_level_names;
 mod rpc;
 
 use crate::{
     cli_args::Opt,
-    html::TableEntry,
     official_level_names::OfficialLevelNames,
     rpc::{LeaderboardResponse, Rpc, RpcRequestExt, WorkshopResponse},
 };
@@ -63,6 +61,23 @@ struct LevelInfo {
     workshop_response: Option<WorkshopResponse>,
     leaderboard_response: LeaderboardResponse,
     timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ChangelistEntry {
+    pub map_name: String,
+    pub map_author: Option<String>,
+    pub map_preview: Option<String>,
+    pub mode: String,
+    pub new_recordholder: String,
+    pub old_recordholder: Option<String>,
+    pub record_new: String,
+    pub record_old: Option<String>,
+    pub workshop_item_id: Option<String>,
+    pub steam_id_author: Option<String>,
+    pub steam_id_new_recordholder: String,
+    pub steam_id_old_recordholder: Option<String>,
+    pub fetch_time: String,
 }
 
 impl Display for GameModeId {
@@ -124,7 +139,7 @@ fn update(client: &mut Rpc) -> Result<(), Error> {
         }
     };
 
-    let mut changelist: Vec<TableEntry> = match File::open(CHANGELIST_FILENAME) {
+    let mut changelist: Vec<ChangelistEntry> = match File::open(CHANGELIST_FILENAME) {
         Ok(mut handle) => {
             let data = serde_json::from_reader(&mut handle)?;
             info!("Loaded changelist");
@@ -150,20 +165,11 @@ fn update(client: &mut Rpc) -> Result<(), Error> {
         None => return Ok(()),
     };
 
-    info!("Computing page data");
+    info!("Computing changelist");
     update_changelist(&mut changelist, &mut new_level_infos, old_level_infos);
 
     serde_json::to_writer(&mut File::create(CHANGELIST_FILENAME)?, &changelist)?;
     serde_json::to_writer(&mut File::create(QUERY_RESULTS_FILENAME)?, &new_level_infos)?;
-
-    changelist.reverse();
-
-    info!("Rendering HTML");
-    html::render(
-        "index.handlebars",
-        changelist.into_boxed_slice(),
-        "site/index.html",
-    )?;
 
     Ok(())
 }
@@ -285,7 +291,11 @@ fn create_leaderboard_name_string(
     }
 }
 
-fn update_changelist(changelist: &mut Vec<TableEntry>, new: &mut [LevelInfo], old: Vec<LevelInfo>) {
+fn update_changelist(
+    changelist: &mut Vec<ChangelistEntry>,
+    new: &mut [LevelInfo],
+    old: Vec<LevelInfo>,
+) {
     new.sort_by_key(|level_info| {
         level_info
             .workshop_response
@@ -329,7 +339,7 @@ fn update_changelist(changelist: &mut Vec<TableEntry>, new: &mut [LevelInfo], ol
             }
         };
 
-        Some(TableEntry {
+        Some(ChangelistEntry {
             map_name: name.clone(),
             map_author: workshop_response.as_ref().map(|x| x.author_name.clone()),
             map_preview: workshop_response.as_ref().map(|x| x.preview_url.clone()),
