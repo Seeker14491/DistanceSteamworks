@@ -89,38 +89,33 @@ const columnDefs: ColDef[] = [
     { headerName: 'Previous Record', field: 'previousRecord' }
 ];
 
-const oReq = new XMLHttpRequest();
-oReq.addEventListener('load', reqListener);
-oReq.open('GET', 'https://seekr.pw/distance-log/changelist.json');
-oReq.send();
+fetch('https://seekr.pw/distance-log/changelist.json')
+    .then(response => response.json())
+    .then(data => {
+        const rowData = unwrapValidation(t.array(RawEntry).decode(data))
+            .map(processEntry)
+            .reverse();
 
-function reqListener() {
-    const rowData = unwrapValidation(
-        t.array(RawEntry).decode(JSON.parse(oReq.responseText))
-    )
-        .map(processEntry)
-        .reverse();
+        const gridOptions: GridOptions = {
+            columnDefs: columnDefs,
+            rowData: rowData,
+            animateRows: true,
+            onGridReady: x => x.api!.sizeColumnsToFit()
+        };
 
-    const gridOptions: GridOptions = {
-        columnDefs: columnDefs,
-        rowData: rowData,
-        animateRows: true,
-        onGridReady: x => x.api!.sizeColumnsToFit()
-    };
+        const eGridDiv = document.getElementById('grid')! as HTMLElement;
+        new Grid(eGridDiv, gridOptions);
 
-    const eGridDiv = document.getElementById('grid')! as HTMLElement;
-    new Grid(eGridDiv, gridOptions);
+        const api = gridOptions.api!;
 
-    const api = gridOptions.api!;
+        api.sizeColumnsToFit();
+        window.onresize = () => api.sizeColumnsToFit();
 
-    api.sizeColumnsToFit();
-    window.onresize = () => api.sizeColumnsToFit();
-
-    const filterTextBox = document.getElementById(
-        'filter-text-box'
-    )! as HTMLInputElement;
-    filterTextBox.oninput = () => api.setQuickFilter(filterTextBox.value);
-}
+        const filterTextBox = document.getElementById(
+            'filter-text-box'
+        )! as HTMLInputElement;
+        filterTextBox.oninput = () => api.setQuickFilter(filterTextBox.value);
+    });
 
 function processEntry(raw: IRawEntry): GridEntry {
     let fetchTime = raw.fetch_time;
@@ -184,7 +179,9 @@ function PlayerCellRenderer(params: {
     const playerData = params.data[params.colDef.field];
     let html;
     if (playerData) {
-        html = `<a href="https://steamcommunity.com/profiles/${playerData.steamId}" target="_blank">${playerData.name}</a>`;
+        html = `<a href="https://steamcommunity.com/profiles/${
+            playerData.steamId
+        }" target="_blank">${playerData.name}</a>`;
     } else {
         html = '';
     }
