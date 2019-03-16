@@ -62,6 +62,11 @@
     "Iris",
     "Precept",
     "Station",
+    "Resonance",
+    "Deterrence",
+    "Terminus",
+    "Projection",
+    "Eclipse",
     "Binary Construct",
     "Candles of Hekate",
     "Cosmic Glitch",
@@ -91,10 +96,7 @@
     "Volcanic Rush",
     "Whisper",
     "White",
-    "Yellow",
-    "Resonance",
-    "Deterrence",
-    "Terminus"
+    "Yellow"
   ],
   "challenge": [
     "Dodge",
@@ -107,6 +109,7 @@
     "Elevation",
     "Obsidian",
     "Variant Blue",
+    "Divide",
     "44 Second Theory",
     "Hexahorrific",
     "Transfer"
@@ -118,6 +121,7 @@
     "Stunt Playground",
     "Spooky Town",
     "Atrium",
-    "Stuntware 2051"
+    "Stuntware 2051",
+    "Syncopation",
   ]
 }
