@@ -86,6 +86,17 @@ impl Display for GameModeId {
     }
 }
 
+impl ChangelistEntry {
+    pub fn is_likely_a_duplicate_of(&self, other: &Self) -> bool {
+        self.map_name == other.map_name
+            && self.mode == other.mode
+            && self.record_new == other.record_new
+            && self.workshop_item_id == other.workshop_item_id
+            && self.steam_id_author == other.steam_id_author
+            && self.steam_id_new_recordholder == other.steam_id_new_recordholder
+    }
+}
+
 fn main() {
     Builder::from_env(Env::default().default_filter_or("info")).init();
     let args = cli_args::get();
@@ -360,7 +371,16 @@ fn update_changelist(
         })
     });
 
-    changelist.extend(entries.rev());
+    let entries: Vec<_> = entries
+        .filter(|new_entry| {
+            changelist
+                .iter()
+                .all(|existing_entry| !new_entry.is_likely_a_duplicate_of(existing_entry))
+        })
+        .rev()
+        .collect();
+
+    changelist.extend(entries);
 }
 
 fn format_score(score: i32, game_mode: GameModeId) -> String {
