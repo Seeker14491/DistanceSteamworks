@@ -124,7 +124,7 @@ where
         .unwrap()
         .into_os_string();
     let mut args = vec!["DistanceSteamworksProxy.dll".to_owned().into()];
-    args.extend(proxy_args.into_iter().map(|x| x.into()));
+    args.extend(proxy_args.into_iter().map(Into::into));
 
     info!("Starting DistanceSteamworksProxy");
     debug!("dotnet args: {:?}", args);
