@@ -51,7 +51,8 @@ fn run() -> Result<(), Error> {
         sleep_secs(60);
         let mut proxy = start_proxy(env::args_os().skip(1))?;
         sleep_secs(5);
-        for i in 0..(20 * 60 * STEAM_RESTART_FREQUENCY_HOURS) {
+        const PROXY_POLL_FREQUENCY_SECS: i32 = 5;
+        for i in 0..((60 / PROXY_POLL_FREQUENCY_SECS) * 60 * STEAM_RESTART_FREQUENCY_HOURS) {
             if let Ok(Some(exit_status)) = proxy.try_wait() {
                 warn!("DistanceSteamworksProxy exited: {:?}", exit_status);
 
@@ -65,7 +66,7 @@ fn run() -> Result<(), Error> {
                 sleep_secs(5);
                 continue 'outer;
             }
-            sleep_secs(5);
+            sleep_secs(PROXY_POLL_FREQUENCY_SECS as u64);
         }
 
         proxy.kill().context("Couldn't kill proxy process")?;
