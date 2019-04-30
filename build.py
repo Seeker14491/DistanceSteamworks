@@ -20,7 +20,7 @@ subprocess.run(["bash", "--login", "-c", "cargo build --release"], cwd="manager"
 subprocess.run(["yarn"], cwd="distance-log-frontend", shell=True, check=True)
 subprocess.run(["parcel", "build", "--public-url", publicUrl, "www/index.html"], cwd="distance-log-frontend", shell=True, check=True)
 
-shutil.copytree("DistanceSteamworksProxy/DistanceSteamworksProxy/bin/Release/netcoreapp2.1/publish", proxy)
+shutil.copytree("DistanceSteamworksProxy/DistanceSteamworksProxy/bin/Release/netcoreapp2.2/publish", proxy)
 shutil.copy("DistanceSteamworksProxy/Steamworks.NET/OSX-Linux-x64/Steamworks.NET.dll", proxy)
 shutil.copy("DistanceSteamworksProxy/Steamworks.NET/OSX-Linux-x64/libsteam_api.so", proxy)
 shutil.copy("DistanceSteamworksProxy/DistanceSteamworksProxy/steam_appid.txt", proxy)
