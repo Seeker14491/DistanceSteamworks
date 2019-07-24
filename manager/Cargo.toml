@@ -5,7 +5,14 @@ authors = ["Brian Bowman <seeker14491@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+async-timer = { git = "https://github.com/Seeker14491/async-timer.git", tag = "v0.0.3" }
+color-backtrace = "0.2.2"
 env_logger = "0.6.0"
 failure = "0.1.5"
+futures-preview = "0.3.0-alpha.17"
 log = "0.4.6"
-reqwest = "0.9.9"
+reqwest = "0.9.18"
+runtime = "0.3.0-alpha.6"
+structopt = "0.2.14"
+pin-utils = "0.1.0-alpha.4"
+

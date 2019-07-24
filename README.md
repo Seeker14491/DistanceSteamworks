@@ -2,13 +2,11 @@
 
 > Software for querying and processing Distance's Steamworks data.
 
-This repo currently contains four pieces of software: `DistanceSteamworksProxy`, `manager`, `distance-log`, and `distance-log-frontend`.
+This repo contains three pieces of software: `manager`, `distance-log`, and `distance-log-frontend`.
 
-DistanceSteamworksProxy communicates with Steam servers through the [Steamworks API](https://partner.steamgames.com/doc/sdk/api), and exposes its own API via [JSON-RPC](https://www.jsonrpc.org/specification). It is implemented in C#, and makes use of the [Steamworks.NET](https://steamworks.github.io/) library, which is also used by Distance.
+distance-log queries the Steam leaderboards and output a log of new world records in JSON. You can access this generated changelog here: https://seekr.pw/distance-log/changelist.json.
 
-"manager" is a wrapper around DistanceSteamworksProxy that periodically restarts Steam and DistanceSteamworksProxy to keep things running smoothly. It is implemented in Rust.
-
-distance-log consumes the API exposed by DistanceSteamworksProxy, and uses it to query the Steam leaderboards and output a log of new world records in JSON. It is implemented in Rust. You can access this generated changelog here: https://seekr.pw/distance-log/changelist.json.
+"manager" is a wrapper around distance-log that periodically runs it.
 
 distance-log-frontend is a webapp that displays the changelog that distance-log outputs. You can see it running at https://seekr.pw/distance-log/.
 
@@ -16,59 +14,45 @@ distance-log-frontend is a webapp that displays the changelog that distance-log 
 
 ### Prerequisites
 
-- .NET Core SDK to build DistanceSteamworksProxy
 - Rust nightly to build distance-log and "manager"
 - Yarn and Parcel, to build distance-log-frontend
 - Python, if you will make use of the "build.py" build script
 
-
-Most code is cross-platform and should build and run on Windows, Mac, and Linux. An exception is the "manager" program, which is only written for running on Linux.
+The code is cross-platform and should build and run on Windows, Mac, and Linux.
 
 A build script "build.py" is provided that builds everything and copies things into the right places, but it'll only work on Windows 10 with WSL installed, and it just builds for Linux x64. You will need Rust installed inside WSL. If your setup is different you will need to tweak this file, or just build what you need individually. This script builds everything into the `out\linux-x64` directory.
 
 ## Running
 
-### DistanceSteamworksProxy
-
-#### Prerequisites:
-
-- .NET Core Runtime
-- Steam, logged into an account that owns Distance
-
-Instead of running it directly, you should run it through the manager application, substituting `8000` to whatever port number you want it to expose the JSON-RPC api on:
-
-```
-./manager 8000
-```
-
-The manager application has built-in support for sending a Discord message if something goes wrong, through a webhook. To set this up, see [this link](https://support.discordapp.com/hc/en-us/articles/228383668-Intro-to-Webhooks) to set up a webhook, and then set a `DISCORD_WEBHOOK_URL` environment variable with the value of the webhook URL before running the manager application.
-
-If you do want to run the bare DistanceSteamworksProxy, you can run it like this from inside the folder with the build `DistanceSteamworksProxy.dll`:
-
-```
-dotnet DistanceSteamworksProxy.dll 8000
-```
-
 ### distance-log
 
 #### Prerequisites:
 
-- a running DistanceSteamworksProxy process
+- `steam_appid.txt` next to the executable, copied from the `distance-log` directory.
+- Depending on your platform, a Steam API `.dll`, `.so`, or `.dylib` file, also next to the executable. You can find these [here](https://github.com/Seeker14491/steamworks-rs/tree/master/steamworks-sys/steamworks_sdk/redistributable_bin).
+- Steam, logged into an account that owns Distance
 
-You might run it like this:
-
-```
-./distance-log -p 8000 -d "10 min"
-```
-
-To see available flags and options, you can pass the `-h` flag:
+The executable takes no arguments, so run it like this:
 
 ```
-./distance-log -h
+./distance-log
 ```
 
-Once run, the program will update `site/index.html` regularly.
+The program will create or update `changelist.json`, which is the log of new world records, then exit. It only writes records obtained since it last ran, so the first time it runs it will not generate any entries. It also writes `query_results.json`, which is used in the creation of the changelist.
 
-## Contributing
+### manager
 
-Suggestions and PRs are welcome.
+#### Prerequisites:
+
+- The distance-log executable must be in the same directory as the manager executable
+- All prerequisites of distance-log
+
+The manager application is a wrapper around distance-log. It runs continuously, executing the distance-log binary at a regular interval. It also starts and restarts Steam at a regular interval.
+
+The manager application also has built-in support for sending a Discord message if something goes wrong, through a webhook. To set this up, see [this link](https://support.discordapp.com/hc/en-us/articles/228383668-Intro-to-Webhooks) to set up a webhook, and then set a `DISCORD_WEBHOOK_URL` environment variable with the value of the webhook URL before running the manager application.
+
+It currently does not take any arguments; modify the consts in `src/main.rs` if you want to configure the intervals. Note that the manager starts Steam on its own; Steam should not be running already when you run the manager (Though you should have run Steam before and logged in so it won't prompt for your password again).
+
+```
+./manager
+```

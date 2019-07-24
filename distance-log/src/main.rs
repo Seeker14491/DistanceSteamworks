@@ -1,128 +1,61 @@
-#![feature(try_blocks)]
-
-#[macro_use]
-extern crate log;
+#![feature(async_await)]
+#![recursion_limit = "128"]
+#![warn(
+    rust_2018_idioms,
+    deprecated_in_future,
+    macro_use_extern_crate,
+    missing_debug_implementations,
+    unused_labels,
+    unused_qualifications,
+    clippy::cast_possible_truncation
+)]
 
 mod cli_args;
-mod official_level_names;
-mod rpc;
+mod domain;
+mod official_levels;
+mod persistence;
+mod steamworks;
+mod util;
 
 use crate::{
     cli_args::Opt,
-    official_level_names::OfficialLevelNames,
-    rpc::{LeaderboardResponse, Rpc, RpcRequestExt, WorkshopResponse},
+    domain::{ChangelistEntry, LevelInfo},
+    persistence::{impls::file_json::FileJson, LoadError, Persistence},
+    steamworks::Steamworks,
 };
-use chrono::{DateTime, Utc};
+use chrono::Utc;
+use distance_util::LeaderboardGameMode;
 use env_logger::{self, Builder, Env};
-use failure::{Error, Fail, ResultExt};
+use failure::{Error, Fail};
+use futures::prelude::*;
 use if_chain::if_chain;
 use indicatif::ProgressBar;
-use num_integer::Integer;
-use serde_derive::{Deserialize, Serialize};
-use serde_json;
-use std::{
-    collections::BTreeMap,
-    fmt::{self, Display},
-    fs::File,
-    io, process, thread,
-};
-use thousands::Separable;
+use log::{error, info, warn};
+use std::{collections::BTreeMap, process};
 
 const QUERY_RESULTS_FILENAME: &str = "query_results.json";
 const CHANGELIST_FILENAME: &str = "changelist.json";
-const OFFICIAL_LEVELS_FILENAME: &str = "official_levels.json";
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub enum GameModeId {
-    None,
-    Sprint,
-    Stunt,
-    Soccer,
-    FreeRoam,
-    ReverseTag,
-    LevelEditorPlay,
-    CoopSprint,
-    Challenge,
-    Adventure,
-    SpeedAndStyle,
-    Trackmogrify,
-    Demo,
-    MainMenu,
-    LostToEchoes,
-    Nexus,
-    Count,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct LevelInfo {
-    name: String,
-    mode: GameModeId,
-    leaderboard_name: String,
-    workshop_response: Option<WorkshopResponse>,
-    leaderboard_response: LeaderboardResponse,
-    timestamp: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ChangelistEntry {
-    pub map_name: String,
-    pub map_author: Option<String>,
-    pub map_preview: Option<String>,
-    pub mode: String,
-    pub new_recordholder: String,
-    pub old_recordholder: Option<String>,
-    pub record_new: String,
-    pub record_old: Option<String>,
-    pub workshop_item_id: Option<String>,
-    pub steam_id_author: Option<String>,
-    pub steam_id_new_recordholder: String,
-    pub steam_id_old_recordholder: Option<String>,
-    pub fetch_time: String,
-}
-
-impl Display for GameModeId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl ChangelistEntry {
-    pub fn is_likely_a_duplicate_of(&self, other: &Self) -> bool {
-        self.map_name == other.map_name
-            && self.mode == other.mode
-            && self.record_new == other.record_new
-            && self.workshop_item_id == other.workshop_item_id
-            && self.steam_id_author == other.steam_id_author
-            && self.steam_id_new_recordholder == other.steam_id_new_recordholder
-    }
-}
-
-fn main() {
+#[runtime::main]
+async fn main() {
     Builder::from_env(Env::default().default_filter_or("info")).init();
     let args = cli_args::get();
 
-    if let Err(e) = run(args) {
+    if let Err(e) = run(args).await {
         print_error(e);
         process::exit(-1);
     }
 }
 
-fn run(args: Opt) -> Result<(), Error> {
-    let mut client = rpc::client_connect(format!("127.0.0.1:{}", args.port))?;
+async fn run(_args: Opt) -> Result<(), Error> {
+    let steamworks = Steamworks::new()?;
+    let persistence = FileJson::new(QUERY_RESULTS_FILENAME, CHANGELIST_FILENAME);
 
-    if args.delay_start {
-        thread::sleep(args.update_delay.into());
-    }
+    info!("Starting update procedure");
+    update(&steamworks, &persistence).await?;
+    info!("Finished update procedure");
 
-    loop {
-        info!("Starting update procedure...");
-        if let Err(e) = update(&mut client) {
-            print_error(e);
-        } else {
-            info!("Finished update procedure");
-        }
-        thread::sleep(args.update_delay.into());
-    }
+    Ok(())
 }
 
 fn print_error<E: Into<Error>>(e: E) {
@@ -133,66 +66,72 @@ fn print_error<E: Into<Error>>(e: E) {
     }
 }
 
-fn update(client: &mut Rpc) -> Result<(), Error> {
-    let old_level_infos: Option<Vec<LevelInfo>> = match File::open(QUERY_RESULTS_FILENAME) {
-        Ok(mut handle) => {
-            let data = serde_json::from_reader(&mut handle)?;
+async fn update(steamworks: &Steamworks, persistence: impl Persistence) -> Result<(), Error> {
+    let old_level_infos = match persistence.load_query_results() {
+        Ok(x) => {
             info!("Loaded previous query results");
-            Some(data)
+            Some(x)
         }
         Err(e) => {
-            if let io::ErrorKind::NotFound = e.kind() {
-                warn!("Previous query results file not found");
+            if let LoadError::DoesNotExist = e {
+                warn!("No previous query results found");
                 None
             } else {
-                return Err(e.context("Error loading query results file").into());
+                return Err(e.context("Error loading query results").into());
             }
         }
     };
 
-    let mut changelist: Vec<ChangelistEntry> = match File::open(CHANGELIST_FILENAME) {
-        Ok(mut handle) => {
-            let data = serde_json::from_reader(&mut handle)?;
+    let mut changelist = match persistence.load_changelist() {
+        Ok(x) => {
             info!("Loaded changelist");
-            data
+            x
         }
         Err(e) => {
-            if let io::ErrorKind::NotFound = e.kind() {
-                warn!("changelist file not found");
+            if let LoadError::DoesNotExist = e {
+                warn!("No existing changelist found");
                 Vec::new()
             } else {
-                return Err(e.context("Error loading changelist file").into());
+                return Err(e.context("Error loading changelist").into());
             }
         }
     };
 
-    let mut new_level_infos = get_level_infos(client)?;
+    let spinner = ProgressBar::new_spinner();
+    let mut new_level_infos = get_level_infos(&steamworks)
+        .inspect(|res| {
+            if let Ok(level_info) = res {
+                spinner.set_message(&format!("Fetched level {}", &level_info.name));
+            }
+        })
+        .try_collect::<Vec<_>>()
+        .await?;
+    spinner.finish_with_message("Finished fetching level information.");
     if let Some(ref x) = old_level_infos {
         add_missing_entries_from(&mut new_level_infos, x.clone());
     }
 
-    let old_level_infos = match old_level_infos {
-        Some(x) => x,
-        None => return Ok(()),
-    };
+    if let Some(old_level_infos) = old_level_infos {
+        info!("Computing changelist");
+        update_changelist(&mut changelist, &mut new_level_infos, old_level_infos);
 
-    info!("Computing changelist");
-    update_changelist(&mut changelist, &mut new_level_infos, old_level_infos);
+        info!("Saving changelist");
+        persistence.save_changelist(&changelist)?;
+    }
 
-    serde_json::to_writer(&mut File::create(CHANGELIST_FILENAME)?, &changelist)?;
-    serde_json::to_writer(&mut File::create(QUERY_RESULTS_FILENAME)?, &new_level_infos)?;
-
+    info!("Saving level info");
+    persistence.save_query_results(&new_level_infos)?;
     Ok(())
 }
 
-fn get_level_infos(client: &mut Rpc) -> Result<Vec<LevelInfo>, Error> {
-    info!("Fetching workshop levels...");
-    let mut levels = get_workshop_levels(client)?;
-
-    info!("Fetching official levels...");
-    levels.append(&mut get_official_levels(client)?);
-
-    Ok(levels)
+fn get_level_infos(steamworks: &Steamworks) -> impl Stream<Item = Result<LevelInfo, Error>> + '_ {
+    stream::iter(get_official_levels(steamworks))
+        .buffer_unordered(usize::max_value())
+        .chain(
+            get_workshop_levels(steamworks)
+                .buffer_unordered(usize::max_value())
+                .filter_map(|x| future::ready(x.transpose())),
+        )
 }
 
 fn add_missing_entries_from(level_infos: &mut Vec<LevelInfo>, other: Vec<LevelInfo>) {
@@ -208,98 +147,102 @@ fn add_missing_entries_from(level_infos: &mut Vec<LevelInfo>, other: Vec<LevelIn
     }
 }
 
-fn get_official_levels(client: &mut Rpc) -> Result<Vec<LevelInfo>, Error> {
-    let mut level_infos = Vec::new();
-    let official_levels = OfficialLevelNames::read()?;
-    let pbar = ProgressBar::new(official_levels.total_count() as u64);
-    for (level_name, mode) in &official_levels {
-        let leaderboard_name = create_leaderboard_name_string(level_name, mode, None);
-        let leaderboard_response = client
-            .GetLeaderboardRange(&leaderboard_name, 1, 2)
-            .get()
-            .with_context(|_| format!("error downloading leaderboard '{}'", &leaderboard_name))?;
-        level_infos.push(LevelInfo {
-            name: level_name.to_owned(),
-            mode,
-            leaderboard_name,
-            workshop_response: None,
-            leaderboard_response,
-            timestamp: Utc::now(),
+fn get_official_levels(
+    steamworks: &Steamworks,
+) -> impl Iterator<Item = impl Future<Output = Result<LevelInfo, Error>> + '_> + '_ {
+    official_levels::iter().map(move |(level_name, mode)| {
+        let leaderboard_name = distance_util::create_leaderboard_name_string(
+            level_name, mode, None,
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "Couldn't create a leaderboard name string for the official level '{}'",
+                level_name
+            )
         });
-        pbar.inc(1);
-    }
 
-    pbar.finish_and_clear();
-    Ok(level_infos)
-}
+        async move {
+            let leaderboard_response = steamworks
+                .get_leaderboard_range(leaderboard_name.clone(), 1, 2)
+                .await?;
 
-fn get_workshop_levels(client: &mut Rpc) -> Result<Vec<LevelInfo>, Error> {
-    let workshop_levels: Vec<WorkshopResponse> =
-        client.GetWorkshopLevels(u32::max_value(), "").get()?.into();
-    let level_infos: Vec<_> = workshop_levels
-        .into_iter()
-        .flat_map(|workshop_reponse| {
-            [
-                ("Sprint", GameModeId::Sprint),
-                ("Challenge", GameModeId::Challenge),
-                ("Stunt", GameModeId::Stunt),
-            ]
-            .iter()
-            .filter_map(|(s, mode)| {
-                if workshop_reponse.tags.iter().any(|x| x == s) {
-                    Some((workshop_reponse.clone(), *mode))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-        })
-        .collect();
-    let pbar = ProgressBar::new(level_infos.len() as u64);
-    let level_infos = level_infos
-        .into_iter()
-        .map(|(workshop_response, mode)| -> Result<_, Error> {
-            let filename_without_extension = workshop_response
-                .file_name
-                .trim_end_matches(".bytes")
-                .to_owned();
-            let leaderboard_name = create_leaderboard_name_string(
-                &filename_without_extension,
-                mode,
-                Some(workshop_response.steam_id_owner),
-            );
-            let leaderboard_response = client
-                .GetLeaderboardRange(&leaderboard_name, 1, 2)
-                .get()
-                .with_context(|_| {
-                    format!("error downloading leaderboard '{}'", &leaderboard_name)
-                })?;
-            pbar.inc(1);
             Ok(LevelInfo {
-                name: workshop_response.title.clone(),
+                name: level_name.to_owned(),
                 mode,
                 leaderboard_name,
-                workshop_response: Some(workshop_response),
+                workshop_response: None,
                 leaderboard_response,
                 timestamp: Utc::now(),
             })
-        })
-        .collect();
-
-    pbar.finish_and_clear();
-    level_infos
+        }
+    })
 }
 
-fn create_leaderboard_name_string(
-    level_name: &str,
-    game_mode: GameModeId,
-    steam_id_owner: Option<u64>,
-) -> String {
-    if let Some(id) = steam_id_owner {
-        format!("{}_{}_{}_stable", level_name, game_mode as u8, id)
-    } else {
-        format!("{}_{}_stable", level_name, game_mode as u8)
-    }
+fn get_workshop_levels(
+    steamworks: &Steamworks,
+) -> impl Stream<Item = impl Future<Output = Result<Option<LevelInfo>, Error>> + '_> + '_ {
+    let workshop_levels = steamworks.get_all_workshop_sprint_challenge_stunt_levels();
+    let level_infos = workshop_levels
+        .map(|fut| {
+            fut.map_ok(|workshop_response| {
+                let x = [
+                    LeaderboardGameMode::Sprint,
+                    LeaderboardGameMode::Challenge,
+                    LeaderboardGameMode::Stunt,
+                ]
+                .iter()
+                .filter_map(move |mode| {
+                    if workshop_response.tags.iter().any(|x| x == mode.name()) {
+                        let leaderboard_name = distance_util::create_leaderboard_name_string(
+                            remove_bytes_extension(&workshop_response.file_name),
+                            *mode,
+                            Some(workshop_response.steam_id_owner),
+                        );
+                        leaderboard_name.map(|leaderboard_name| {
+                            Ok((workshop_response.clone(), *mode, leaderboard_name))
+                        })
+                    } else {
+                        None
+                    }
+                });
+
+                stream::iter(x)
+            })
+            .try_flatten_stream()
+        })
+        .flatten();
+
+    level_infos.map(move |x| {
+        future::ready(x)
+            .and_then(move |(workshop_response, mode, leaderboard_name)| {
+                async move {
+                    Ok(steamworks
+                        .get_leaderboard_range(leaderboard_name.clone(), 1, 2)
+                        .await
+                        .ok()
+                        .map(|leaderboard_response| {
+                            (
+                                workshop_response,
+                                mode,
+                                leaderboard_name,
+                                leaderboard_response,
+                            )
+                        }))
+                }
+            })
+            .map_ok(|opt| {
+                opt.map(
+                    |(workshop_response, mode, leaderboard_name, leaderboard_response)| LevelInfo {
+                        name: workshop_response.title.clone(),
+                        mode,
+                        leaderboard_name,
+                        workshop_response: Some(workshop_response),
+                        leaderboard_response,
+                        timestamp: Utc::now(),
+                    },
+                )
+            })
+    })
 }
 
 fn update_changelist(
@@ -340,7 +283,7 @@ fn update_changelist(
             then {
                 if is_score_better(first_entry.score, previous_first_entry.score, *mode) {
                     (Some(previous_first_entry.player_name.clone()),
-                        Some(format_score(previous_first_entry.score, *mode)),
+                        Some(distance_util::format_score(previous_first_entry.score, *mode)),
                         Some(format!("{}", previous_first_entry.steam_id)))
                 } else {
                     return None;
@@ -357,7 +300,7 @@ fn update_changelist(
             mode: format!("{}", mode),
             new_recordholder: first_entry.player_name,
             old_recordholder,
-            record_new: format_score(first_entry.score, *mode),
+            record_new: distance_util::format_score(first_entry.score, *mode),
             record_old,
             workshop_item_id: workshop_response
                 .as_ref()
@@ -383,43 +326,25 @@ fn update_changelist(
     changelist.extend(entries);
 }
 
-fn format_score(score: i32, game_mode: GameModeId) -> String {
+fn is_score_better(score_1: i32, score_2: i32, game_mode: LeaderboardGameMode) -> bool {
     match game_mode {
-        GameModeId::Sprint | GameModeId::Challenge => format_score_as_time(score),
-        GameModeId::Stunt => format!("{} eV", score.separate_with_commas()),
-        _ => unimplemented!(),
+        LeaderboardGameMode::Sprint | LeaderboardGameMode::Challenge => score_1 < score_2,
+        LeaderboardGameMode::Stunt => score_1 > score_2,
     }
 }
 
-fn format_score_as_time(score: i32) -> String {
-    assert!(score >= 0);
-
-    // `score` is in milliseconds
-    let (hours, rem) = score.div_rem(&(1000 * 60 * 60));
-    let (minutes, rem) = rem.div_rem(&(1000 * 60));
-    let (seconds, rem) = rem.div_rem(&(1000));
-    let centiseconds = rem / 10;
-
-    format!(
-        "{:02}:{:02}:{:02}.{:02}",
-        hours, minutes, seconds, centiseconds
-    )
+fn remove_bytes_extension(level: &str) -> &str {
+    let pattern = ".bytes";
+    assert!(level.ends_with(pattern));
+    &level[0..(level.len() - pattern.len())]
 }
 
-fn is_score_better(score_1: i32, score_2: i32, game_mode: GameModeId) -> bool {
-    match game_mode {
-        GameModeId::Sprint | GameModeId::Challenge => score_1 < score_2,
-        GameModeId::Stunt => score_1 > score_2,
-        _ => panic!("unsupported GameModeId: {}", game_mode),
-    }
+#[allow(dead_code)]
+fn dbg_type<T>(_: ()) -> T {
+    panic!();
 }
 
-#[cfg(test)]
-mod test {
-    use super::format_score_as_time;
-
-    #[test]
-    fn test_format_score_as_time() {
-        assert_eq!(format_score_as_time(17767890), "04:56:07.89");
-    }
+#[test]
+fn test_remove_bytes_extension() {
+    assert_eq!(remove_bytes_extension("some_level.bytes"), "some_level");
 }
