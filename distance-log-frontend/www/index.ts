@@ -4,8 +4,9 @@ import {
     GridOptions,
     ColDef
 } from 'ag-grid-community';
+import escapeHtml from 'escape-html';
 import * as t from 'io-ts';
-import moment = require('moment');
+import moment from 'moment';
 import { PathReporter } from 'io-ts/lib/PathReporter';
 import { Validation } from 'io-ts';
 
@@ -163,7 +164,7 @@ function mapCellRenderer(
     let html;
     if (workshopItemId) {
         html = ` <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=${workshopItemId}" target="_blank" rel="noopener noreferrer">${
-            mapCellData.name
+            escapeHtml(mapCellData.name)
         }</a>`;
     } else {
         html = mapCellData.name + ' <b>(official level)</b>';
@@ -181,7 +182,7 @@ function PlayerCellRenderer(params: {
     if (playerData) {
         html = `<a href="https://steamcommunity.com/profiles/${
             playerData.steamId
-        }" target="_blank">${playerData.name}</a>`;
+        }" target="_blank">${escapeHtml(playerData.name)}</a>`;
     } else {
         html = '';
     }

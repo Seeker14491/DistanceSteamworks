@@ -6,10 +6,12 @@
   "dependencies": {
     "ag-grid-community": "^21.0.0",
     "bootstrap": "^4.3.1",
+    "escape-html": "^1.0.3",
     "io-ts": "^1.8.2",
     "moment": "^2.24.0"
   },
   "devDependencies": {
+    "@types/escape-html": "^0.0.20",
     "cssnano": "^4.1.10",
     "prettier": "1.17.1",
     "typescript": "^3.3.3333"
