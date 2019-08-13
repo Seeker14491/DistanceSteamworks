@@ -42,13 +42,7 @@ impl Steamworks {
         start: u32,
         end: u32,
     ) -> Result<LeaderboardResponse, Error> {
-        let leaderboard = self
-            .0
-            .find_leaderboard(leaderboard_name.clone())
-            .await?
-            .ok_or_else(|| {
-                failure::err_msg(format!("Leaderboard {} was not found", leaderboard_name))
-            })?;
+        let leaderboard = self.0.find_leaderboard(leaderboard_name.clone()).await?;
 
         let entries: FuturesOrdered<_> = leaderboard
             .download_global(start, end, 0)

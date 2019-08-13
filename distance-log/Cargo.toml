@@ -13,10 +13,11 @@ futures-preview = "0.3.0-alpha.17"
 humantime = "1.2.0"
 if_chain = "1.0.0"
 indicatif = "0.11.0"
+itertools = "0.8.0"
 log = "0.4.5"
+runtime = { git = "https://github.com/rustasync/runtime.git" }
 serde = "1.0.78"
 serde_derive = "1.0.78"
 serde_json = "1.0.27"
-steamworks = { git = "https://github.com/Seeker14491/steamworks-rs.git", tag = "v0.0.3" }
+steamworks = { git = "https://github.com/Seeker14491/steamworks-rs.git", tag = "v0.0.7" }
 structopt = "0.2.10"
-runtime = "0.3.0-alpha.6"
