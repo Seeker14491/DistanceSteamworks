@@ -28,6 +28,7 @@ use failure::{Error, Fail};
 use futures::prelude::*;
 use if_chain::if_chain;
 use indicatif::ProgressBar;
+use itertools::{EitherOrBoth, Itertools};
 use log::{error, info, warn};
 use std::{collections::BTreeMap, process};
 
@@ -105,8 +106,8 @@ async fn update(steamworks: &Steamworks, persistence: impl Persistence) -> Resul
         .try_collect::<Vec<_>>()
         .await?;
     spinner.finish_with_message("Finished fetching level information.");
-    if let Some(ref x) = old_level_infos {
-        add_missing_entries_from(&mut new_level_infos, x.clone());
+    if let Some(ref old) = old_level_infos {
+        new_level_infos = add_missing_entries_from(new_level_infos, old.clone());
     }
 
     if let Some(old_level_infos) = old_level_infos {
@@ -132,17 +133,36 @@ fn get_level_infos(steamworks: &Steamworks) -> impl Stream<Item = Result<LevelIn
         )
 }
 
-fn add_missing_entries_from(level_infos: &mut Vec<LevelInfo>, other: Vec<LevelInfo>) {
-    // FIXME: quadratic runtime
-    for level_info in other {
-        if level_infos
-            .iter()
-            .find(|x| x.leaderboard_name == level_info.leaderboard_name)
-            .is_none()
-        {
-            level_infos.push(level_info);
-        }
-    }
+// Deal with Steam sometimes failing to return data by supplementing it with the previously stored
+// data.
+fn add_missing_entries_from(
+    mut level_infos: Vec<LevelInfo>,
+    mut other: Vec<LevelInfo>,
+) -> Vec<LevelInfo> {
+    let sort = |x: &mut [LevelInfo]| {
+        x.sort_unstable_by(|a, b| a.leaderboard_name.cmp(&b.leaderboard_name))
+    };
+
+    sort(&mut level_infos);
+    sort(&mut other);
+
+    level_infos
+        .into_iter()
+        .merge_join_by(other, |a, b| a.leaderboard_name.cmp(&b.leaderboard_name))
+        .map(|x| match x {
+            EitherOrBoth::Both(l, r) => {
+                if l.leaderboard_response.entries.len() == 0
+                    && r.leaderboard_response.entries.len() > 0
+                {
+                    r
+                } else {
+                    l
+                }
+            }
+            EitherOrBoth::Left(x) => x,
+            EitherOrBoth::Right(x) => x,
+        })
+        .collect()
 }
 
 fn get_official_levels(
