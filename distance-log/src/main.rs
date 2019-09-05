@@ -1,4 +1,3 @@
-#![feature(async_await)]
 #![recursion_limit = "128"]
 #![warn(
     rust_2018_idioms,
@@ -10,14 +9,12 @@
     clippy::cast_possible_truncation
 )]
 
-mod cli_args;
 mod domain;
 mod official_levels;
 mod persistence;
 mod steamworks;
 
 use crate::{
-    cli_args::Opt,
     domain::{ChangelistEntry, LevelInfo},
     persistence::{impls::file_json::FileJson, LoadError, Persistence},
     steamworks::Steamworks,
@@ -38,15 +35,14 @@ const CHANGELIST_FILENAME: &str = "changelist.json";
 #[runtime::main]
 async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    let args = cli_args::get();
 
-    if let Err(e) = run(args).await {
+    if let Err(e) = run().await {
         print_error(e);
         process::exit(-1);
     }
 }
 
-async fn run(_args: Opt) -> Result<(), Error> {
+async fn run() -> Result<(), Error> {
     let steamworks = Steamworks::new()?;
     let persistence = FileJson::new(QUERY_RESULTS_FILENAME, CHANGELIST_FILENAME);
 

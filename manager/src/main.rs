@@ -9,8 +9,6 @@
     clippy::cast_possible_truncation
 )]
 
-mod cli_args;
-
 use async_timer::TimerProvider;
 use failure::{Error, ResultExt};
 use futures::{channel::oneshot, prelude::*};
@@ -34,7 +32,6 @@ const PROBLEM_NOTIFICATION_THRESHOLD: Duration = Duration::from_secs(4 * 3600);
 async fn main() {
     color_backtrace::install();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    let args = cli_args::get();
 
     let discord_webhook_url = match env::var("DISCORD_WEBHOOK_URL") {
         Ok(x) => Some(x),
@@ -52,7 +49,7 @@ async fn main() {
         }
     };
 
-    if let Err(e) = run(args, discord_webhook_url.as_ref().map(String::as_str)).await {
+    if let Err(e) = run(discord_webhook_url.as_ref().map(String::as_str)).await {
         if let Some(url) = discord_webhook_url {
             discord_send_problem_notification(&url, &format!("error: {}", e))
                 .expect("Couldn't send problem notification");
@@ -72,7 +69,7 @@ fn print_error<E: Into<Error>>(e: E) {
     }
 }
 
-async fn run(_args: cli_args::Opt, discord_webhook_url: Option<&str>) -> Result<(), Error> {
+async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
     let timer = TimerProvider::new();
     let mut last_successful_update = Instant::now();
     let mut consecutive_update_failures = 0;
