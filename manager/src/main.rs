@@ -1,4 +1,3 @@
-#![feature(async_await)]
 #![warn(
     rust_2018_idioms,
     deprecated_in_future,
@@ -91,7 +90,7 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
                         .delay_from_now(
                             UPDATE_PERIOD
                                 .checked_sub(update_start_time.elapsed())
-                                .unwrap_or(Duration::default()),
+                                .unwrap_or_else(Duration::default),
                         )
                         .await?;
 
