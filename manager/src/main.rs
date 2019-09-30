@@ -10,25 +10,25 @@
 
 use async_timer::TimerProvider;
 use failure::{Error, ResultExt};
-use futures::{channel::oneshot, prelude::*};
+use futures::pin_mut;
 use log::{error, info, warn};
-use pin_utils::pin_mut;
 use std::{
     collections::HashMap,
     env,
     fmt::Display,
-    process::{self, Child, Command, ExitStatus, Stdio},
-    thread,
+    process,
+    process::{ExitStatus, Stdio},
     time::{Duration, Instant},
 };
+use tokio::runtime::current_thread::Runtime;
+use tokio_process::{Child, Command};
 
 const UPDATE_PERIOD: Duration = Duration::from_secs(5 * 60);
 const MAX_UPDATE_DURATION: Duration = Duration::from_secs(30 * 60);
 const STEAM_RESTART_PERIOD: Duration = Duration::from_secs(2 * 3600);
 const PROBLEM_NOTIFICATION_THRESHOLD: Duration = Duration::from_secs(4 * 3600);
 
-#[runtime::main]
-async fn main() {
+fn main() {
     color_backtrace::install();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -48,7 +48,10 @@ async fn main() {
         }
     };
 
-    if let Err(e) = run(discord_webhook_url.as_ref().map(String::as_str)).await {
+    let mut rt = Runtime::new().unwrap();
+    let result = rt.block_on(run(discord_webhook_url.as_ref().map(String::as_str)));
+
+    if let Err(e) = result {
         if let Some(url) = discord_webhook_url {
             discord_send_problem_notification(&url, &format!("error: {}", e))
                 .expect("Couldn't send problem notification");
@@ -127,6 +130,7 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
         }
 
         steam.kill()?;
+        steam.await?;
     }
 }
 
@@ -151,35 +155,11 @@ fn start_steam() -> Result<Child, Error> {
 
 async fn run_distance_log() -> Result<ExitStatus, Error> {
     info!("Starting distance-log");
-    let (tx, rx) = oneshot::channel::<Result<ExitStatus, Error>>();
-    thread::spawn(|| {
-        let mut child = match Command::new("./distance-log")
-            .spawn()
-            .context("Couldn't spawn the distance-log process")
-        {
-            Ok(x) => x,
-            Err(e) => {
-                tx.send(Err(e.into())).ok();
-                return;
-            }
-        };
+    let child = Command::new("./distance-log")
+        .spawn()
+        .context("Couldn't spawn the distance-log process")?;
 
-        loop {
-            match child.try_wait() {
-                Ok(Some(exit_status)) => {
-                    tx.send(Ok(exit_status)).ok();
-                    break;
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    tx.send(Err(e.into())).ok();
-                    break;
-                }
-            }
-        }
-    });
-
-    rx.map(|res| res.unwrap()).await
+    Ok(child.await?)
 }
 
 fn discord_send_problem_notification(

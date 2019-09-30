@@ -1,0 +1,16 @@
+use crate::asyncify;
+
+use std::io;
+use std::path::Path;
+
+/// Creates a new directory symlink on the filesystem.
+///
+/// The `dst` path will be a directory symbolic link pointing to the `src`
+/// path.
+///
+/// This is an async version of [`std::os::windows::fs::symlink_dir`][std]
+///
+/// [std]: https://doc.rust-lang.org/std/os/windows/fs/fn.symlink_dir.html
+pub async fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<()> {
+    asyncify(|| std::os::windows::fs::symlink_dir(&src, &dst)).await
+}
