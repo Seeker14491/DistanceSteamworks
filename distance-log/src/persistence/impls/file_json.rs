@@ -2,7 +2,7 @@ use crate::{
     persistence::{LoadError, Persistence},
     ChangelistEntry, LevelInfo,
 };
-use failure::Error;
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,

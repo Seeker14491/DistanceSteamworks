@@ -1,4 +1,4 @@
-use failure::Error;
+use anyhow::Error;
 use futures::{prelude::*, stream::FuturesOrdered};
 use serde_derive::{Deserialize, Serialize};
 use steamworks::{ugc::MatchingUgcType, Client, InitError};

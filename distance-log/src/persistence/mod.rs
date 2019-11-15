@@ -1,15 +1,16 @@
 pub mod impls;
 
 use crate::{ChangelistEntry, LevelInfo};
-use failure::{Error, Fail};
+use anyhow::Error;
+use thiserror::Error;
 
-#[derive(Fail, Debug)]
+#[derive(Error, Debug)]
 pub enum LoadError {
-    #[fail(display = "The requested item does not exist.")]
+    #[error("The requested item does not exist.")]
     DoesNotExist,
 
-    #[fail(display = "{}", _0)]
-    Other(#[fail(cause)] Error),
+    #[error("{0}")]
+    Other(#[from] Error),
 }
 
 pub trait Persistence {

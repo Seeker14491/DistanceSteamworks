@@ -19,25 +19,25 @@ use crate::{
     persistence::{impls::file_json::FileJson, LoadError, Persistence},
     steamworks::Steamworks,
 };
+use anyhow::{Context, Error};
+use async_std::task;
 use chrono::Utc;
 use distance_util::LeaderboardGameMode;
-use failure::{Error, Fail};
 use futures::prelude::*;
 use if_chain::if_chain;
 use indicatif::ProgressBar;
 use itertools::{EitherOrBoth, Itertools};
-use log::{error, info, warn};
+use log::{info, warn};
 use std::{collections::BTreeMap, process};
 
 const QUERY_RESULTS_FILENAME: &str = "query_results.json";
 const CHANGELIST_FILENAME: &str = "changelist.json";
 
-#[runtime::main]
-async fn main() {
+fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    if let Err(e) = run().await {
-        print_error(e);
+    if let Err(e) = task::block_on(run()) {
+        println!("{}", e);
         process::exit(-1);
     }
 }
@@ -53,14 +53,6 @@ async fn run() -> Result<(), Error> {
     Ok(())
 }
 
-fn print_error<E: Into<Error>>(e: E) {
-    let e = e.into();
-    error!("error: {}", e);
-    for err in e.iter_causes() {
-        error!(" caused by: {}", err);
-    }
-}
-
 async fn update(steamworks: &Steamworks, persistence: impl Persistence) -> Result<(), Error> {
     let old_level_infos = match persistence.load_query_results() {
         Ok(x) => {
@@ -72,7 +64,7 @@ async fn update(steamworks: &Steamworks, persistence: impl Persistence) -> Resul
                 warn!("No previous query results found");
                 None
             } else {
-                return Err(e.context("Error loading query results").into());
+                return Err(e).context("Error loading query results");
             }
         }
     };
@@ -87,7 +79,7 @@ async fn update(steamworks: &Steamworks, persistence: impl Persistence) -> Resul
                 warn!("No existing changelist found");
                 Vec::new()
             } else {
-                return Err(e.context("Error loading changelist").into());
+                return Err(e).context("Error loading changelist");
             }
         }
     };
