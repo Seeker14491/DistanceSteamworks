@@ -19,5 +19,5 @@ log = "0.4.5"
 serde = "1.0.78"
 serde_derive = "1.0.78"
 serde_json = "1.0.27"
-steamworks = { git = "https://github.com/Seeker14491/steamworks-rs.git", tag = "v0.0.13" }
+steamworks = { git = "https://github.com/Seeker14491/steamworks-rs.git", tag = "v0.0.14" }
 thiserror = "1.0.5"
