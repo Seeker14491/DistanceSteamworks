@@ -1,11 +1,16 @@
-use distance_util::{enumflags2::BitFlags, LeaderboardGameMode};
+use distance_util::LeaderboardGameMode;
 
 pub fn iter() -> impl Iterator<Item = (&'static str, LeaderboardGameMode)> {
-    let all: BitFlags<LeaderboardGameMode> = BitFlags::all();
-    all.iter().flat_map(|game_mode| {
+    [
+        LeaderboardGameMode::Sprint,
+        LeaderboardGameMode::Challenge,
+        LeaderboardGameMode::Stunt,
+    ]
+    .iter()
+    .flat_map(|game_mode| {
         game_mode
-            .official_levels()
+            .official_level_names()
             .iter()
-            .map(move |level| (*level, game_mode))
+            .map(move |level| (*level, *game_mode))
     })
 }

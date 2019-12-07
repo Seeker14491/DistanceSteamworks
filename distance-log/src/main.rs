@@ -289,7 +289,7 @@ fn update_changelist(
             then {
                 if is_score_better(first_entry.score, previous_first_entry.score, *mode) {
                     (Some(previous_first_entry.player_name.clone()),
-                        Some(distance_util::format_score(previous_first_entry.score, *mode)),
+                        Some(distance_util::format_score(previous_first_entry.score, *mode).unwrap()),
                         Some(format!("{}", previous_first_entry.steam_id)))
                 } else {
                     return None;
@@ -306,7 +306,7 @@ fn update_changelist(
             mode: format!("{}", mode),
             new_recordholder: first_entry.player_name,
             old_recordholder,
-            record_new: distance_util::format_score(first_entry.score, *mode),
+            record_new: distance_util::format_score(first_entry.score, *mode).unwrap(),
             record_old,
             workshop_item_id: workshop_response
                 .as_ref()
