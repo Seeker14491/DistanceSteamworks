@@ -77,7 +77,7 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
     let mut consecutive_update_failures = 0;
 
     loop {
-        let _steam = start_steam()?;
+        let steam = start_steam()?;
         sleep_secs(60).await;
 
         let steam_start_time = Instant::now();
@@ -126,6 +126,7 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
         }
 
         shutdown_steam().await?;
+        steam.await?;
     }
 }
 
