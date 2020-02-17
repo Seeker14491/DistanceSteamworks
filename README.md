@@ -14,7 +14,7 @@ distance-log-frontend is a webapp that displays the changelog that distance-log 
 
 ### Prerequisites
 
-- Rust nightly to build distance-log and "manager"
+- Rust, to build distance-log and "manager"
 - Yarn and Parcel, to build distance-log-frontend
 - Python, if you will make use of the "build.py" build script
 
@@ -46,6 +46,7 @@ The program will create or update `changelist.json`, which is the log of new wor
 
 - The distance-log executable must be in the same directory as the manager executable
 - All prerequisites of distance-log
+- Make sure the manager and distance-log executables have execute permissions.
 
 The manager application is a wrapper around distance-log. It runs continuously, executing the distance-log binary at a regular interval. It also starts and restarts Steam at a regular interval.
 

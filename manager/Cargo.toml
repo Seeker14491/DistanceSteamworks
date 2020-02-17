@@ -5,16 +5,10 @@ authors = ["Brian Bowman <seeker14491@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-async-timer = { git = "https://github.com/Seeker14491/async-timer.git", tag = "v0.0.3" }
-color-backtrace = "0.2.2"
+anyhow = "1.0.26"
+color-backtrace = "0.3.0"
 env_logger = "0.7.0"
-failure = "0.1.5"
-futures-preview = "0.3.0-alpha.17"
+futures = "0.3.4"
 log = "0.4.6"
-reqwest = "0.9.18"
-tokio = "0.2.0-alpha.2"
-tokio-process = "0.3.0-alpha.2"
-
-[patch.crates-io]
-# Patch this to fix a compile error
-tokio-fs = { path = "tokio-fs-0.2.0-alpha.2" }
+reqwest = { version = "0.10.1", features = ["json"] }
+tokio = { version = "0.2.11", features = ["macros", "process", "time"] }

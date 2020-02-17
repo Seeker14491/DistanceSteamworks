@@ -3,13 +3,11 @@
     deprecated_in_future,
     macro_use_extern_crate,
     missing_debug_implementations,
-    unused_labels,
     unused_qualifications,
     clippy::cast_possible_truncation
 )]
 
-use async_timer::TimerProvider;
-use failure::{Error, ResultExt};
+use anyhow::{format_err, Context, Error};
 use futures::pin_mut;
 use log::{error, info, warn};
 use std::{
@@ -20,15 +18,18 @@ use std::{
     process::{ExitStatus, Stdio},
     time::{Duration, Instant},
 };
-use tokio::runtime::current_thread::Runtime;
-use tokio_process::{Child, Command};
+use tokio::{
+    process::{Child, Command},
+    time,
+};
 
 const UPDATE_PERIOD: Duration = Duration::from_secs(5 * 60);
 const MAX_UPDATE_DURATION: Duration = Duration::from_secs(30 * 60);
 const STEAM_RESTART_PERIOD: Duration = Duration::from_secs(2 * 3600);
 const PROBLEM_NOTIFICATION_THRESHOLD: Duration = Duration::from_secs(4 * 3600);
 
-fn main() {
+#[tokio::main]
+async fn main() {
     color_backtrace::install();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -48,12 +49,12 @@ fn main() {
         }
     };
 
-    let mut rt = Runtime::new().unwrap();
-    let result = rt.block_on(run(discord_webhook_url.as_ref().map(String::as_str)));
+    let result = run(discord_webhook_url.as_ref().map(String::as_str)).await;
 
     if let Err(e) = result {
         if let Some(url) = discord_webhook_url {
             discord_send_problem_notification(&url, &format!("error: {}", e))
+                .await
                 .expect("Couldn't send problem notification");
         }
 
@@ -66,52 +67,47 @@ fn main() {
 fn print_error<E: Into<Error>>(e: E) {
     let e = e.into();
     error!("error: {}", e);
-    for err in e.iter_causes() {
-        error!(" caused by: {}", err);
+    while let Some(e) = e.source() {
+        error!(" caused by: {}", e);
     }
 }
 
 async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
-    let timer = TimerProvider::new();
     let mut last_successful_update = Instant::now();
     let mut consecutive_update_failures = 0;
 
     loop {
-        let mut steam = start_steam()?;
-        sleep_secs(&timer, 60).await?;
+        let _steam = start_steam()?;
+        sleep_secs(60).await;
 
         let steam_start_time = Instant::now();
         while steam_start_time.elapsed() < STEAM_RESTART_PERIOD {
             let update_start_time = Instant::now();
             let f = run_distance_log();
             pin_mut!(f);
-            match timer.timeout_future_from_now(f, MAX_UPDATE_DURATION).await {
+            match time::timeout(MAX_UPDATE_DURATION, f).await {
                 Ok(_) => {
                     last_successful_update = Instant::now();
 
-                    timer
-                        .delay_from_now(
-                            UPDATE_PERIOD
-                                .checked_sub(update_start_time.elapsed())
-                                .unwrap_or_else(Duration::default),
-                        )
-                        .await?;
+                    time::delay_for(
+                        UPDATE_PERIOD
+                            .checked_sub(update_start_time.elapsed())
+                            .unwrap_or_else(Duration::default),
+                    )
+                    .await;
 
                     consecutive_update_failures = 0;
                 }
-                Err(timeout_error) => {
-                    if timeout_error.is_elapsed() {
-                        print_error(failure::err_msg("distance-log ran for too long"));
-                    } else {
-                        print_error(timeout_error.into_inner().unwrap())
-                    }
+                Err(_) => {
+                    print_error(format_err!("distance-log ran for too long"));
 
                     if let Some(discord_webhook_url) = discord_webhook_url {
                         if last_successful_update.elapsed() > PROBLEM_NOTIFICATION_THRESHOLD {
                             discord_send_problem_notification(
                                 discord_webhook_url,
                                 "Time since last successful update has exceeded threshold",
-                            )?;
+                            )
+                            .await?;
                         }
                     }
 
@@ -120,7 +116,7 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
                         if i == 0 {
                             break;
                         } else {
-                            sleep_secs(&timer, 5 * 60).await?;
+                            sleep_secs(5 * 60).await;
                         }
                     }
 
@@ -129,28 +125,31 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
             }
         }
 
-        steam.kill()?;
-        steam.await?;
+        shutdown_steam().await?;
     }
 }
 
-async fn sleep_secs(timer_provider: &TimerProvider, secs: u64) -> Result<(), async_timer::Error> {
-    timer_provider
-        .delay_from_now(Duration::from_secs(secs))
-        .await
+async fn sleep_secs(secs: u64) {
+    time::delay_for(Duration::from_secs(secs)).await;
 }
 
 fn start_steam() -> Result<Child, Error> {
     info!("Starting Steam");
     let child = Command::new("steam")
+        .arg("-no-browser")
+        .env("DISPLAY", ":0")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .env("DISPLAY", ":0")
         .spawn()
         .context("Couldn't spawn Steam process")?;
 
     Ok(child)
+}
+
+async fn shutdown_steam() -> Result<ExitStatus, Error> {
+    info!("Shutting down Steam");
+    Command::new("steam").arg("-shutdown").status().await.context("Error shutting down Steam")
 }
 
 async fn run_distance_log() -> Result<ExitStatus, Error> {
@@ -162,20 +161,18 @@ async fn run_distance_log() -> Result<ExitStatus, Error> {
     Ok(child.await?)
 }
 
-fn discord_send_problem_notification(
+async fn discord_send_problem_notification(
     discord_webhook_url: &str,
     error: impl Display,
 ) -> Result<(), Error> {
     let mut params = HashMap::new();
-    params.insert(
-        "content",
-        format!("[Distance Steamworks Manager] error: {}", error),
-    );
+    params.insert("content", format!("[Distance Steamworks Manager] error: {}", error));
 
     reqwest::Client::new()
         .post(discord_webhook_url)
         .json(&params)
         .send()
+        .await
         .context("Error sending crash notification")?;
 
     Ok(())
