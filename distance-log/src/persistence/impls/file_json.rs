@@ -2,13 +2,15 @@ use crate::{
     persistence::{LoadError, Persistence},
     ChangelistEntry, LevelInfo,
 };
-use anyhow::Error;
-use serde::{Deserialize, Serialize};
+use anyhow::{Context, Error};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     fs::File,
     io,
+    io::Write,
     path::{Path, PathBuf},
 };
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Clone)]
 pub struct FileJson {
@@ -64,6 +66,33 @@ where
     }
 }
 
-fn save_file(data: impl Serialize, path: &Path) -> Result<(), Error> {
-    Ok(serde_json::to_writer(&mut File::create(path)?, &data)?)
+fn save_file<T: Serialize + DeserializeOwned>(data: &[T], path: &Path) -> Result<(), Error> {
+    let serialized = serde_json::to_vec(&data)?;
+
+    // Make sure the JSON we just generated is valid
+    let _: Vec<T> =
+        serde_json::from_slice(&serialized).context("the JSON we just generated is not valid")?;
+
+    // Atomically update the file using a temporary file
+    let mut tmp = NamedTempFile::new()?;
+    tmp.write_all(&serialized)?;
+    #[allow(unused_variables)]
+    let file = tmp.persist(path)?;
+
+    // Set appropriate file permissions on unix
+    {
+        #[allow(unused_mut)]
+        let mut perms = file.metadata()?.permissions();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            perms.set_mode(0o644);
+        }
+
+        file.set_permissions(perms)?;
+    }
+
+    Ok(())
 }
