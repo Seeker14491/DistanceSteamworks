@@ -112,13 +112,11 @@ async fn update(steamworks: &Steamworks, persistence: impl Persistence) -> Resul
 }
 
 fn get_level_infos(steamworks: &Steamworks) -> impl Stream<Item = Result<LevelInfo, Error>> + '_ {
-    stream::iter(get_official_levels(steamworks))
-        .buffer_unordered(usize::max_value())
-        .chain(
-            get_workshop_levels(steamworks)
-                .buffer_unordered(usize::max_value())
-                .filter_map(|x| future::ready(x.transpose())),
-        )
+    stream::iter(get_official_levels(steamworks)).buffer_unordered(usize::max_value()).chain(
+        get_workshop_levels(steamworks)
+            .buffer_unordered(usize::max_value())
+            .filter_map(|x| future::ready(x.transpose())),
+    )
 }
 
 // Deal with Steam sometimes failing to return data by supplementing it with the previously stored
@@ -168,9 +166,8 @@ fn get_official_levels(
         });
 
         async move {
-            let leaderboard_response = steamworks
-                .get_leaderboard_range(leaderboard_name.clone(), 1, 2)
-                .await?;
+            let leaderboard_response =
+                steamworks.get_leaderboard_range(leaderboard_name.clone(), 1, 2).await?;
 
             Ok(LevelInfo {
                 name: level_name.to_owned(),
@@ -220,33 +217,24 @@ fn get_workshop_levels(
 
     level_infos.map(move |x| {
         future::ready(x)
-            .and_then(move |(workshop_response, mode, leaderboard_name)| {
-                async move {
-                    Ok(steamworks
-                        .get_leaderboard_range(leaderboard_name.clone(), 1, 2)
-                        .await
-                        .ok()
-                        .map(|leaderboard_response| {
-                            (
-                                workshop_response,
-                                mode,
-                                leaderboard_name,
-                                leaderboard_response,
-                            )
-                        }))
-                }
+            .and_then(move |(workshop_response, mode, leaderboard_name)| async move {
+                Ok(steamworks.get_leaderboard_range(leaderboard_name.clone(), 1, 2).await.ok().map(
+                    |leaderboard_response| {
+                        (workshop_response, mode, leaderboard_name, leaderboard_response)
+                    },
+                ))
             })
             .map_ok(|opt| {
-                opt.map(
-                    |(workshop_response, mode, leaderboard_name, leaderboard_response)| LevelInfo {
+                opt.map(|(workshop_response, mode, leaderboard_name, leaderboard_response)| {
+                    LevelInfo {
                         name: workshop_response.title.clone(),
                         mode,
                         leaderboard_name,
                         workshop_response: Some(workshop_response),
                         leaderboard_response,
                         timestamp: Utc::now(),
-                    },
-                )
+                    }
+                })
             })
     })
 }
@@ -257,11 +245,7 @@ fn update_changelist(
     old: Vec<LevelInfo>,
 ) {
     new.sort_by_key(|level_info| {
-        level_info
-            .workshop_response
-            .as_ref()
-            .map(|x| x.published_file_id)
-            .unwrap_or(0)
+        level_info.workshop_response.as_ref().map(|x| x.published_file_id).unwrap_or(0)
     });
     let old: BTreeMap<_, _> = old
         .into_iter()

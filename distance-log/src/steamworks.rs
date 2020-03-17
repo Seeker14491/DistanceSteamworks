@@ -48,23 +48,20 @@ impl Steamworks {
             .download_global(start, end, 0)
             .await
             .into_iter()
-            .map(|entry| {
-                async move {
-                    let player_name = entry.steam_id.persona_name(&self.0).await;
+            .map(|entry| async move {
+                let player_name = entry.steam_id.persona_name(&self.0).await;
 
-                    LeaderboardEntry {
-                        steam_id: entry.steam_id.into(),
-                        global_rank: entry.global_rank,
-                        score: entry.score,
-                        player_name,
-                    }
+                LeaderboardEntry {
+                    steam_id: entry.steam_id.into(),
+                    global_rank: entry.global_rank,
+                    score: entry.score,
+                    player_name,
                 }
             })
             .collect();
 
-        let response = LeaderboardResponse {
-            entries: entries.collect::<Vec<_>>().await.into_boxed_slice(),
-        };
+        let response =
+            LeaderboardResponse { entries: entries.collect::<Vec<_>>().await.into_boxed_slice() };
 
         Ok(response)
     }
