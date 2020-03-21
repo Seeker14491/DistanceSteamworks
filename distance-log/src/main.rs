@@ -28,7 +28,7 @@ use if_chain::if_chain;
 use indicatif::ProgressBar;
 use itertools::{EitherOrBoth, Itertools};
 use log::{info, warn};
-use std::{collections::BTreeMap, process};
+use std::{collections::BTreeMap, process, time::Duration};
 
 const QUERY_RESULTS_FILENAME: &str = "query_results.json";
 const CHANGELIST_FILENAME: &str = "changelist.json";
@@ -112,11 +112,36 @@ async fn update(steamworks: &Steamworks, persistence: impl Persistence) -> Resul
 }
 
 fn get_level_infos(steamworks: &Steamworks) -> impl Stream<Item = Result<LevelInfo, Error>> + '_ {
-    stream::iter(get_official_levels(steamworks)).buffer_unordered(usize::max_value()).chain(
-        get_workshop_levels(steamworks)
-            .buffer_unordered(usize::max_value())
-            .filter_map(|x| future::ready(x.transpose())),
-    )
+    const TIMEOUT: u64 = 30;
+
+    let official = get_official_levels(steamworks).map(|fut| async {
+        match async_std::future::timeout(Duration::from_secs(TIMEOUT), fut).await {
+            Ok(Ok(x)) => Some(x),
+            _ => {
+                warn!("Skipping a level that took too long to fetch");
+                None
+            },
+        }
+    });
+    let official =
+        stream::iter(official).buffer_unordered(4).filter_map(|x| async { Ok(x).transpose() });
+
+    let workshop = get_workshop_levels(steamworks)
+        .map(|fut| async {
+            match async_std::future::timeout(Duration::from_secs(TIMEOUT), fut).await {
+                Ok(Ok(x)) => x,
+                _ => {
+                    warn!("Skipping a level that took too long to fetch");
+                    None
+                },
+            }
+        })
+        .buffer_unordered(4)
+        .filter_map(|x| async { Ok(x).transpose() });
+
+    let all = official.chain(workshop);
+
+    all
 }
 
 // Deal with Steam sometimes failing to return data by supplementing it with the previously stored
