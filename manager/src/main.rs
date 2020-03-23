@@ -24,8 +24,8 @@ use tokio::{
 };
 
 const UPDATE_PERIOD: Duration = Duration::from_secs(5 * 60);
-const MAX_UPDATE_DURATION: Duration = Duration::from_secs(30 * 60);
-const STEAM_RESTART_PERIOD: Duration = Duration::from_secs(2 * 3600);
+const MAX_UPDATE_DURATION: Duration = Duration::from_secs(60 * 60);
+const STEAM_RESTART_PERIOD: Duration = Duration::from_secs(3 * 3600);
 const PROBLEM_NOTIFICATION_THRESHOLD: Duration = Duration::from_secs(4 * 3600);
 
 #[tokio::main]
