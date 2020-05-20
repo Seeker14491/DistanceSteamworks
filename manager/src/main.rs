@@ -3,8 +3,7 @@
     deprecated_in_future,
     macro_use_extern_crate,
     missing_debug_implementations,
-    unused_qualifications,
-    clippy::cast_possible_truncation
+    unused_qualifications
 )]
 
 use anyhow::{format_err, Context, Error};
@@ -49,7 +48,7 @@ async fn main() {
         }
     };
 
-    let result = run(discord_webhook_url.as_ref().map(String::as_str)).await;
+    let result = run(discord_webhook_url.as_deref()).await;
 
     if let Err(e) = result {
         if let Some(url) = discord_webhook_url {
@@ -150,7 +149,11 @@ fn start_steam() -> Result<Child, Error> {
 
 async fn shutdown_steam() -> Result<ExitStatus, Error> {
     info!("Shutting down Steam");
-    Command::new("steam").arg("-shutdown").status().await.context("Error shutting down Steam")
+    Command::new("steam")
+        .arg("-shutdown")
+        .status()
+        .await
+        .context("Error shutting down Steam")
 }
 
 async fn run_distance_log() -> Result<ExitStatus, Error> {
@@ -167,7 +170,10 @@ async fn discord_send_problem_notification(
     error: impl Display,
 ) -> Result<(), Error> {
     let mut params = HashMap::new();
-    params.insert("content", format!("[Distance Steamworks Manager] error: {}", error));
+    params.insert(
+        "content",
+        format!("[Distance Steamworks Manager] error: {}", error),
+    );
 
     reqwest::Client::new()
         .post(discord_webhook_url)
