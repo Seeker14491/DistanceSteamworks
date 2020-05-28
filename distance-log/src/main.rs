@@ -112,36 +112,25 @@ async fn update(steamworks: &Steamworks, persistence: impl Persistence) -> Resul
 }
 
 fn get_level_infos(steamworks: &Steamworks) -> impl Stream<Item = Result<LevelInfo, Error>> + '_ {
-    const TIMEOUT: u64 = 30;
+    const MAX_BUFFER: usize = 512;
+    const TIMEOUT_SECS: u64 = 60;
 
-    let official = get_official_levels(steamworks).map(|fut| async {
-        match async_std::future::timeout(Duration::from_secs(TIMEOUT), fut).await {
-            Ok(Ok(x)) => Some(x),
-            _ => {
-                warn!("Skipping a level that took too long to fetch");
-                None
-            },
-        }
-    });
-    let official =
-        stream::iter(official).buffer_unordered(4).filter_map(|x| async { Ok(x).transpose() });
+    let stream = stream::iter(get_official_levels(steamworks)).buffer_unordered(MAX_BUFFER).chain(
+        get_workshop_levels(steamworks)
+            .buffer_unordered(MAX_BUFFER)
+            .filter_map(|x| future::ready(x.transpose())),
+    );
 
-    let workshop = get_workshop_levels(steamworks)
-        .map(|fut| async {
-            match async_std::future::timeout(Duration::from_secs(TIMEOUT), fut).await {
-                Ok(Ok(x)) => x,
-                _ => {
-                    warn!("Skipping a level that took too long to fetch");
-                    None
-                },
+    async_std::stream::StreamExt::timeout_repeat(stream, Duration::from_secs(TIMEOUT_SECS))
+        .take_while(|timeout_result| {
+            let timed_out = timeout_result.is_err();
+            if timed_out {
+                warn!("Skipping some levels that took too long to fetch");
             }
+
+            future::ready(!timed_out)
         })
-        .buffer_unordered(4)
-        .filter_map(|x| async { Ok(x).transpose() });
-
-    let all = official.chain(workshop);
-
-    all
+        .map(|timeout_result| timeout_result.unwrap())
 }
 
 // Deal with Steam sometimes failing to return data by supplementing it with the previously stored
