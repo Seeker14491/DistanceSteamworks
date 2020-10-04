@@ -12,15 +12,7 @@ distance-log-frontend is a webapp that displays the changelog that distance-log 
 
 ## Building
 
-### Prerequisites
-
-- Rust, to build distance-log and "manager"
-- Yarn and Parcel, to build distance-log-frontend
-- Python, if you will make use of the "build.py" build script
-
-The code is cross-platform and should build and run on Windows, Mac, and Linux.
-
-A build script "build.py" is provided that builds everything and copies things into the right places, but it'll only work on Windows 10 with WSL installed, and it just builds for Linux x64. You will need Rust installed inside WSL. If your setup is different you will need to tweak this file, or just build what you need individually. This script builds everything into the `out\linux-x64` directory.
+A Dockerfile is provided to easily build all sub-projects for Linux. You just need Docker installed, then run the `build_with_docker.sh` script. The build output will be placed in the `out` directory.
 
 ## Running
 
