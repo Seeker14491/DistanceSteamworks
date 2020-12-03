@@ -27,7 +27,7 @@ const MAX_UPDATE_DURATION: Duration = Duration::from_secs(60 * 60);
 const STEAM_RESTART_PERIOD: Duration = Duration::from_secs(3 * 3600);
 const PROBLEM_NOTIFICATION_THRESHOLD: Duration = Duration::from_secs(4 * 3600);
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     color_backtrace::install();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -76,7 +76,7 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
     let mut consecutive_update_failures = 0;
 
     loop {
-        let steam = start_steam()?;
+        let mut steam = start_steam()?;
         sleep_secs(60).await;
 
         let steam_start_time = Instant::now();
@@ -88,7 +88,7 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
                 Ok(_) => {
                     last_successful_update = Instant::now();
 
-                    time::delay_for(
+                    time::sleep(
                         UPDATE_PERIOD
                             .checked_sub(update_start_time.elapsed())
                             .unwrap_or_else(Duration::default),
@@ -125,12 +125,12 @@ async fn run(discord_webhook_url: Option<&str>) -> Result<(), Error> {
         }
 
         shutdown_steam().await?;
-        steam.await?;
+        steam.wait().await?;
     }
 }
 
 async fn sleep_secs(secs: u64) {
-    time::delay_for(Duration::from_secs(secs)).await;
+    time::sleep(Duration::from_secs(secs)).await;
 }
 
 fn start_steam() -> Result<Child, Error> {
@@ -158,11 +158,11 @@ async fn shutdown_steam() -> Result<ExitStatus, Error> {
 
 async fn run_distance_log() -> Result<ExitStatus, Error> {
     info!("Starting distance-log");
-    let child = Command::new("./distance-log")
+    let mut child = Command::new("./distance-log")
         .spawn()
         .context("Couldn't spawn the distance-log process")?;
 
-    Ok(child.await?)
+    Ok(child.wait().await?)
 }
 
 async fn discord_send_problem_notification(
