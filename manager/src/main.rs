@@ -1,16 +1,15 @@
 #![warn(
-    rust_2018_idioms,
-    deprecated_in_future,
-    macro_use_extern_crate,
-    missing_debug_implementations,
-    unused_qualifications
+rust_2018_idioms,
+deprecated_in_future,
+macro_use_extern_crate,
+missing_debug_implementations,
+unused_qualifications
 )]
 
 use anyhow::{format_err, Context, Error};
 use futures::pin_mut;
 use log::{error, info, warn};
 use std::{
-    collections::HashMap,
     env,
     fmt::Display,
     process,
@@ -93,7 +92,7 @@ async fn run(healthchecks_url: Option<&str>) -> Result<(), Error> {
                             .checked_sub(update_start_time.elapsed())
                             .unwrap_or_else(Duration::default),
                     )
-                    .await;
+                        .await;
 
                     consecutive_update_failures = 0;
                 }
@@ -156,12 +155,7 @@ async fn run_distance_log() -> Result<ExitStatus, Error> {
 }
 
 async fn healthchecks_send_ping(healthchecks_url: &str) -> Result<(), Error> {
-    reqwest::Client::new()
-        .get(healthchecks_url)
-        .timeout(Duration::from_secs(10))
-        .send()
-        .await
-        .context("Error sending fail signal")?;
+    surf::get(healthchecks_url).send().await.map_err(|e| format_err!("Error sending fail signal: {}", e))?;
 
     Ok(())
 }
@@ -170,18 +164,8 @@ async fn healthchecks_send_fail_signal(
     healthchecks_url: &str,
     error: impl Display,
 ) -> Result<(), Error> {
-    let mut params = HashMap::new();
-    params.insert(
-        "content",
-        format!("[Distance Steamworks Manager] error: {}", error),
-    );
-
-    reqwest::Client::new()
-        .post(&format!("{}/fail", healthchecks_url))
-        .json(&params)
-        .send()
-        .await
-        .context("Error sending fail signal")?;
+    surf::post(format!("{}/fail", healthchecks_url)).body(format!("[Distance Steamworks Manager] error: {}", error)).send().await
+        .map_err(|e| format_err!("Error sending fail signal: {}", e))?;
 
     Ok(())
 }
