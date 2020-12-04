@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 # Waiting on https://github.com/async-rs/async-std/pull/732 to be merged
-async-std = { git = "https://github.com/hhggit/async-std.git", branch = "timeout_repeat", features = ["unstable"] }
+async-std = { path = "async-std-3f1e9e708e918ca2500ab1f1fa6522bba68e368f", features = ["unstable"] }
 chrono = { version = "0.4", features = ["serde"] }
 distance-util = { git = "https://github.com/Seeker14491/distance-util.git", tag = "v0.1.0", features = ["serde"] }
 env_logger = "0.7"
