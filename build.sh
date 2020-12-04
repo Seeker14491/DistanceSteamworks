@@ -3,6 +3,9 @@
 cd distance-log &&\
 cargo test && cargo build --release &&\
 
+cd ../manager &&\
+cargo test && cargo build --release &&\
+
 cd ../distance-log-frontend &&\
 yarn parcel build --public-url /distance-log www/index.html &&\
 
