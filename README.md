@@ -42,9 +42,9 @@ The program will create or update `changelist.json`, which is the log of new wor
 
 The manager application is a wrapper around distance-log. It runs continuously, executing the distance-log binary at a regular interval. It also starts and restarts Steam at a regular interval.
 
-The manager application also has built-in support for sending a Discord message if something goes wrong, through a webhook. To set this up, see [this link](https://support.discordapp.com/hc/en-us/articles/228383668-Intro-to-Webhooks) to set up a webhook, and then set a `DISCORD_WEBHOOK_URL` environment variable with the value of the webhook URL before running the manager application.
+The manager application also has built-in support for pinging [healthchecks.io](https://healthchecks.io/) for monitoring. To use this functionality, set the `HEALTHCHECKS_URL` environment variable to your ping endpoint, which should be of the form `https://hc-ping.com/{uuid}`, before running the manager application.
 
-It currently does not take any arguments; modify the consts in `src/main.rs` if you want to configure the intervals. Note that the manager starts Steam on its own; Steam should not be running already when you run the manager (Though you should have run Steam before and logged in so it won't prompt for your password again).
+The manager does not take any arguments; modify the consts in `src/main.rs` if you want to configure the intervals. Note that the manager starts Steam on its own; Steam should not be running already when you run the manager (Though you should have run Steam before and logged in so it won't prompt for your password again).
 
 ```
 ./manager
